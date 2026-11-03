@@ -33,7 +33,7 @@ pipeline {
         stage('Health Check') {
             steps {
                 echo 'Checking backend health endpoint'
-                sh 'curl --fail --retry 5 --retry-delay 2 http://localhost:8081/health'
+                sh 'curl --fail --retry 5 --retry-delay 2 http://host.docker.internal:8081/health'
             }
         }
     }
