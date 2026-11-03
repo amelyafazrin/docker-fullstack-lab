@@ -13,6 +13,7 @@
             display: flex;
             justify-content: center;
         }
+
         .card {
             background: #ffffff;
             padding: 30px;
@@ -21,9 +22,9 @@
             max-width: 600px;
             width: 100%;
         }
-        h1, h2 {
-            color: #002b49;
-        }
+
+        h1, h2 { color: #002b49; }
+
         .status {
             background: #eef6ff;
             padding: 12px 16px;
@@ -32,22 +33,27 @@
             font-size: 14px;
             color: #1a4971;
         }
+
         .status.error {
             background: #ffeef0;
             color: #b81423;
         }
+
         .form-group {
             display: flex;
             gap: 10px;
             margin-bottom: 20px;
         }
+
         input[type="text"] {
             flex: 1;
+            min-width: 0;
             padding: 10px 14px;
             border: 1px solid #dcdfe6;
             border-radius: 6px;
             font-size: 14px;
         }
+
         button {
             background: #1867c0;
             color: white;
@@ -57,14 +63,22 @@
             cursor: pointer;
             font-weight: bold;
         }
-        button:hover {
-            background: #1456a0;
+
+        button:hover { background: #1456a0; }
+
+        .delete-button {
+            background: #b42332;
+            margin-bottom: 16px;
         }
+
+        .delete-button:hover { background: #8f1925; }
+
         ul {
             list-style: none;
             padding: 0;
             margin: 0;
         }
+
         li {
             background: #f8fafc;
             padding: 12px 16px;
@@ -72,72 +86,142 @@
             margin-bottom: 8px;
             font-size: 14px;
             border-left: 4px solid #1867c0;
+            overflow-wrap: anywhere;
+        }
+
+        .message-date {
+            display: block;
+            color: #64748b;
+            font-size: 12px;
+            margin-top: 6px;
+        }
+
+        @media (max-width: 520px) {
+            body { padding: 16px; }
+            .card { padding: 20px; }
+            .form-group { flex-direction: column; }
         }
     </style>
 </head>
 <body>
     <div class="card">
         <h1>Docker Fullstack Persistent Storage Lab</h1>
-        <div id="status" class="status">Menghubungkan ke backend...</div>
+
+        <div id="status" class="status">
+            Menghubungkan ke backend...
+        </div>
 
         <h2>Pesan tersimpan</h2>
+
         <form id="messageForm" class="form-group">
-            <input type="text" id="messageInput" placeholder="Tulis pesan untuk disimpan..." required>
+            <input
+                type="text"
+                id="messageInput"
+                placeholder="Tulis pesan untuk disimpan..."
+                required
+            >
             <button type="submit">Simpan pesan</button>
         </form>
+
+        <button type="button" id="deleteButton" class="delete-button">
+            Hapus semua pesan
+        </button>
 
         <ul id="messagesList"></ul>
     </div>
 
     <script>
+        const API_URL = '/api/messages';
+
         const statusDiv = document.getElementById('status');
         const messageForm = document.getElementById('messageForm');
         const messageInput = document.getElementById('messageInput');
         const messagesList = document.getElementById('messagesList');
+        const deleteButton = document.getElementById('deleteButton');
 
         async function fetchMessages() {
             try {
-                const res = await fetch('/api/');
-                if (!res.ok) throw new Error('Gagal mengambil data');
-                const data = await res.json();
-                
+                const response = await fetch(API_URL);
+
+                if (!response.ok) {
+                    throw new Error('Gagal mengambil pesan');
+                }
+
+                const messages = await response.json();
+
                 statusDiv.className = 'status';
                 statusDiv.textContent = 'Terhubung ke backend!';
-                
-                messagesList.innerHTML = '';
-                if (data.length === 0) {
-                    messagesList.innerHTML = '<li>Belum ada pesan tersimpan.</li>';
-                } else {
-                    data.forEach(item => {
-                        const li = document.createElement('li');
-                        li.textContent = item.message;
-                        messagesList.appendChild(li);
-                    });
+
+                messagesList.replaceChildren();
+
+                if (messages.length === 0) {
+                    const li = document.createElement('li');
+                    li.textContent = 'Belum ada pesan tersimpan.';
+                    messagesList.appendChild(li);
+                    return;
                 }
-            } catch (err) {
+
+                messages.forEach(item => {
+                    const li = document.createElement('li');
+                    li.appendChild(document.createTextNode(item.message));
+
+                    if (item.created_at) {
+                        const date = document.createElement('span');
+                        date.className = 'message-date';
+                        date.textContent = item.created_at;
+                        li.appendChild(date);
+                    }
+
+                    messagesList.appendChild(li);
+                });
+            } catch (error) {
                 statusDiv.className = 'status error';
-                statusDiv.textContent = 'Koneksi backend gagal: Failed to fetch';
-                messagesList.innerHTML = '<li>Tidak dapat mengambil pesan. Periksa container backend.</li>';
+                statusDiv.textContent = 'Koneksi backend gagal. Periksa API dan konfigurasi Nginx.';
+                console.error(error);
             }
         }
 
-        messageForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const text = messageInput.value.trim();
-            if (!text) return;
+        messageForm.addEventListener('submit', async event => {
+            event.preventDefault();
+
+            const message = messageInput.value.trim();
+            if (!message) return;
 
             try {
-                const res = await fetch('/api/', {
+                const response = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text })
+                    body: JSON.stringify({ message })
                 });
-                if (res.ok) {
-                    messageInput.value = '';
-                    fetchMessages();
+
+                if (!response.ok) {
+                    throw new Error('Gagal menyimpan pesan');
                 }
-            } catch (err) {
-                alert('Gagal menyimpan pesan!');
+
+                messageInput.value = '';
+                await fetchMessages();
+            } catch (error) {
+                alert('Gagal menyimpan pesan. Periksa koneksi backend.');
+                console.error(error);
+            }
+        });
+
+        deleteButton.addEventListener('click', async () => {
+            if (!confirm('Yakin ingin menghapus semua pesan?')) return;
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'DELETE'
+                });
+
+                if (!response.ok) {
+                    throw new Error('Gagal menghapus pesan');
+                }
+
+                await fetchMessages();
+            } catch (error) {
+                alert('Gagal menghapus pesan.');
+                console.error(error);
             }
         });
 
